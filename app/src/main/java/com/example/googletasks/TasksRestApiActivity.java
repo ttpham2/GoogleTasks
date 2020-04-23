@@ -352,6 +352,7 @@ public class TasksRestApiActivity extends AppCompatActivity implements
                 android.R.layout.simple_spinner_item, list);
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mTasksSpinner.setAdapter(dataAdapter);
+        mTasksSpinner.setPrompt("Select tasklist");
     }
 
 
