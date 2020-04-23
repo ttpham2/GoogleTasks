@@ -86,7 +86,7 @@ public class TasksRestApiActivity extends AppCompatActivity implements
     private TextView mStatusTextView;
     private TextView mDetailTextView;
     private TextView mTasksTextView;
-    private Spinner mTasksSpinner;
+    private com.example.googletasks.NoDefaultSpinner mTasksSpinner;
     private ProgressDialog mProgressDialog;
 
     @Override
