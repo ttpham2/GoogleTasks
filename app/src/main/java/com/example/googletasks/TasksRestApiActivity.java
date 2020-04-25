@@ -9,8 +9,12 @@ import android.os.Bundle;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import android.util.Log;
 import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -45,6 +49,7 @@ import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -57,7 +62,7 @@ import java.util.List;
  * https://console.developers.google.com/apis/api/people.googleapis.com/overview?project=YOUR_PROJECT_ID
  */
 public class TasksRestApiActivity extends AppCompatActivity implements
-        View.OnClickListener {
+        View.OnClickListener, AdapterView.OnItemSelectedListener {
 
     private static final String TAG = "TasksRestApiActivity";
     private static final String APPLICATION_NAME = "Google Tasks API Java Quickstart";
@@ -85,15 +90,18 @@ public class TasksRestApiActivity extends AppCompatActivity implements
 
     private TextView mStatusTextView;
     private TextView mDetailTextView;
-    private TextView mTasksTextView;
+    private RecyclerView mTasksRecyclerView;
+    private ArrayList<TasksItem> mTaskItems;
     private com.example.googletasks.NoDefaultSpinner mTasksSpinner;
+    private TasksRecyclerAdapter mAdapter;
+    private RecyclerView.LayoutManager mLayoutManager;
+    private HashMap<Integer, String> mSpinnerMap;
     private ProgressDialog mProgressDialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-        System.out.println("Creating system");
 
         // Views
         mStatusTextView = findViewById(R.id.status);
@@ -207,6 +215,7 @@ public class TasksRestApiActivity extends AppCompatActivity implements
             // Switch to a view that enables interaction with Tasks API
             setContentView(R.layout.tasks_main);
             updateTasksUI(account);
+            mTaskItems = new ArrayList<TasksItem>();
         } catch (ApiException e) {
             Log.w(TAG, "handleSignInResult:error", e);
 
@@ -216,6 +225,19 @@ public class TasksRestApiActivity extends AppCompatActivity implements
             // Signed out, show unauthenticated UI.
             updateUI(null);
         }
+    }
+
+    @Override
+    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        Log.w(TAG, "onItemSelected:tasklist selected in spinner, getting tasks");
+        getTasks(mSpinnerMap.get(position));
+        //String text = parent.getItemAtPosition(position).toString();
+        //Toast.makeText(parent.getContext(), text, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onNothingSelected(AdapterView<?> parent) {
+
     }
 
     /*private void getTasks(){
@@ -259,74 +281,34 @@ public class TasksRestApiActivity extends AppCompatActivity implements
 
         new GetTaskListTask(this).execute(params);
     }
-    protected void loadTextView(@Nullable com.google.api.services.tasks.model.Tasks tasks) {
+    protected void getTasks(@Nullable com.google.api.services.tasks.model.Tasks tasks) {
         hideProgressDialog();
+        mTaskItems.clear();
 
         if (tasks == null) {
-            Log.d(TAG, "getTasklists:tasklists: null");
-            mTasksTextView.setText(getString(R.string.tasklist_fmt, "None"));
+            Log.d(TAG, "getTasks:tasklist: null");
+            //mTasksTextView.setText(getString(R.string.tasklist_fmt, "None"));
             return;
         }
 
-        Log.d(TAG, "getTasklists:tasklists: size=" + tasks.size());
+        Log.d(TAG, "getTasks:tasklist: size=" + tasks.size());
 
-        // Get names of all tasklists
-        /*
-        StringBuilder msg = new StringBuilder();
-        for (int i = 0; i < tasklists.size(); i++) {
-            TaskList tasklist = tasklists.get(i);
-            if (tasklist.getTitle() != null) {
-                msg.append(tasklist.getTitle());
-
-                if (i < tasklists.size() - 1) {
-                    msg.append(",");
-                }
-            }
-        }
-         */
-        StringBuilder msg = new StringBuilder();
         for (com.google.api.services.tasks.model.Task task : tasks.getItems()) {
             if(task.getTitle() != null){
-                msg.append(task.getTitle());
-                msg.append("\n");
+                mTaskItems.add(new TasksItem(R.drawable.ic_android, task.getTitle(), task.getId()));
+                //mTaskItems.add(position)
+            }
+
+            if(mTaskItems != null){
+                buildRecyclerView();
+            }
+            else{
+                Log.d(TAG, "getTasks:tasklist: tasklist is empty");
             }
         }
 
-        // Display names
-        mTasksTextView.setText(getString(R.string.tasklist_fmt, msg.toString()));
     }
 
-    /*
-    protected void loadTextView(@Nullable TaskList tasklist) {
-        hideProgressDialog();
-
-        if (tasklist == null) {
-            Log.d(TAG, "getTasklists:tasklists: null");
-            mTasksTextView.setText(getString(R.string.tasklist_fmt, "None"));
-            return;
-        }
-
-        Log.d(TAG, "getTasklists:tasklists: size=" + tasklist.size());
-
-        // Get names of all tasklists
-        StringBuilder msg = new StringBuilder();
-        for (int i = 0; i < tasklist.size(); i++) {
-            //Task task = tasklist.get(i);
-            Object task = tasklist.get(i);
-            if (task.getTitle() != null) {
-                msg.append(tasklist.getTitle());
-
-                if (i < tasklist.size() - 1) {
-                    msg.append(",");
-                }
-            }
-        }
-
-        // Display names
-        mTasksTextView.setText(getString(R.string.tasklist_fmt, msg.toString()));
-    }
-
-     */
     protected void updateTasksSpinner(@Nullable List<TaskList> tasklists) {
         hideProgressDialog();
 
@@ -340,10 +322,13 @@ public class TasksRestApiActivity extends AppCompatActivity implements
 
         // Get names of all tasklists and put in list
         List<String> list = new ArrayList<String>();
+        mSpinnerMap = new HashMap<Integer,String>();
         for (int i = 0; i < tasklists.size(); i++) {
             TaskList tasklist = tasklists.get(i);
             if (tasklist.getTitle() != null) {
-                list.add(tasklist.getTitle());
+                list.add(tasklist.getTitle() + " (" +
+                        tasklist.getId() + ")");
+                mSpinnerMap.put(i, tasklist.getId());
                 }
             }
 
@@ -353,6 +338,19 @@ public class TasksRestApiActivity extends AppCompatActivity implements
         dataAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         mTasksSpinner.setAdapter(dataAdapter);
         mTasksSpinner.setPrompt("Select tasklist");
+        mTasksSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                Log.w(TAG, "onItemSelected:tasklist selected in spinner, getting tasks");
+                getTasks(mSpinnerMap.get(position));
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+
+            }
+        });
     }
 
 
@@ -390,8 +388,46 @@ public class TasksRestApiActivity extends AppCompatActivity implements
         }
     }
 
+    public void insertItem(int position) {
+        mTaskItems.add(position, new TasksItem(R.drawable.ic_android, "New Item At Position" + position, "This is Line 2"));
+        //mExampleList.add(position, new ExampleItem(null, "New Item At Position" + position, "This is Line 2"));
+        mAdapter.notifyItemInserted(position);
+    }
+
+    public void removeItem(int position) {
+        mTaskItems.remove(position);
+        mAdapter.notifyItemRemoved(position);
+    }
+
+    public void changeItem(int position, String text) {
+        mTaskItems.get(position).changeText1(text);
+        mAdapter.notifyItemChanged(position);
+    }
+
+    public void buildRecyclerView() {
+        mTasksRecyclerView = findViewById(R.id.tasks_recyclerView);
+        mTasksRecyclerView.setHasFixedSize(true);
+        mLayoutManager = new LinearLayoutManager(this);
+        mAdapter = new TasksRecyclerAdapter(mTaskItems);
+
+        mTasksRecyclerView.setLayoutManager(mLayoutManager);
+        mTasksRecyclerView.setAdapter(mAdapter);
+
+        mAdapter.setOnItemClickListener(new TasksRecyclerAdapter.OnItemClickListener() {
+            @Override
+            public void onItemClick(int position) {
+                changeItem(position, "Clicked");
+            }
+
+            @Override
+            public void onDeleteClick(int position) {
+                removeItem(position);
+            }
+        });
+    }
+
     private void updateTasksUI(@Nullable GoogleSignInAccount account) {
-        mTasksTextView = findViewById(R.id.tasksTextView);
+        mTasksRecyclerView = findViewById(R.id.tasks_recyclerView);
         mTasksSpinner = findViewById(R.id.tasksSpinner);
         findViewById(R.id.add_task_button).setOnClickListener(this);
         findViewById(R.id.remove_task_button).setOnClickListener(this);
@@ -482,7 +518,7 @@ public class TasksRestApiActivity extends AppCompatActivity implements
             super.onPostExecute(tasks);
             //setTextView(lists);
             if (mActivityRef.get() != null) {
-                mActivityRef.get().loadTextView(tasks);
+                mActivityRef.get().getTasks(tasks);
             }
         }
 
